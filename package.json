@@ -1,9 +1,18 @@
 {
   "name": "collabnote-backend",
+  "version": "1.0.0",
+  "description": "A backend for CollabNote",
+  "author": "Ethan Lee <hello@ethanl.ee>",
+  "contributors": [{"name": "Mahesh Murag"}, 
+  {"name": "Alex Fine"}, {"name": "Kushal Tirumala"}],
   "dependencies": {
     "express": "*",
     "multer": "*",
     "fs": "*",
     "crypto": "*"
-  }
+  },
+  "scripts": {
+    "start": "node app.js"
+  },
+  "license": "MIT"
 }
