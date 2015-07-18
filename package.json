@@ -1,0 +1,9 @@
+{
+  "name": "collabnote-backend",
+  "dependencies": {
+    "express": "*",
+    "multer": "*",
+    "fs": "*",
+    "crypto": "*"
+  }
+}
