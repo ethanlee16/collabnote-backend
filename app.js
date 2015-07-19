@@ -178,8 +178,8 @@ app.get('/api/' + API_VER + '/:action/:id', function(req, res) {
 function createNotes(file, callback) {
     var content = "";
     var notes = [];
-    var relevance = (Math.log(text.split(" ").length / 500) / Math.LN10) + 0.8;
     var text = file.get("text");
+    var relevance = (Math.log(text.split(" ").length / 500) / Math.LN10) + 0.8;
 
     // WELCOME TO CALLBACK HELL (fixme)
     http.get("http://access.alchemyapi.com/calls/text/TextGetRankedNamedEntities?"
