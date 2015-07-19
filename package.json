@@ -9,7 +9,8 @@
     "express": "*",
     "multer": "*",
     "fs": "*",
-    "crypto": "*"
+    "crypto": "*",
+    "parse": "*"
   },
   "scripts": {
     "start": "node app.js"
