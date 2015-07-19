@@ -44,7 +44,7 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
     console.log(req.file);
     var resp = {
         "result": "",
-        "file": {"id": "", "filepath": "", "text": "", "notes": []}
+        "file": {"id": "", "filepath": "", "text": "", "notes": [], "user": ""}
     };
     var text = "";
     var content;
@@ -73,6 +73,7 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
                         resp.file.filepath = results[0].get("filepath");
                         resp.file.text = results[0].get("text");
                         resp.file.notes = results[0].get("notes");
+                        resp.file.user = results[0].get("user");
                         fs.unlinkSync(req.file.path);
                         res.send(resp);
                     }
@@ -85,6 +86,7 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
                         file.set("downvotes", 0);
                         file.set("notes", []);
                         file.set("text", content.document[0].content);
+                        file.set("user", req.body.user);
 
                         file.save(null, {
                             success: function(file) {
@@ -93,6 +95,7 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
                                 resp.file.id = file.id;
                                 resp.file.filepath = file.get("filepath");
                                 resp.file.text = file.get("text");
+                                resp.file.user = file.get("user");
                                 createNotes(file, function() {
                                     resp.file.notes = file.get("notes");
                                     res.send(resp);
@@ -211,20 +214,26 @@ function createNotes(file, callback) {
                 }).on('end', function() {
                     var rawnotes2 = JSON.parse(content);
                     console.log(content);
-                    for (var x = 0; x < notes.length; x++) {
-                        for (var j = 0; j < rawnotes2.relations.length; j++) {
-                            if(rawnotes2.relations[j].subject.hasOwnProperty("keywords")) {
-                                if (notes[x].text == rawnotes2.relations[j].subject.keywords[0].text) {
-                                    notes[x].sentences.push(rawnotes2.relations[j].object.text)
-                                    if (rawnotes2.relations[j].object.hasOwnProperty("keywords")) {
-                                        for (var b = 0; b < rawnotes2.relations[j].object.keywords.length; b++) {
-                                            notes[x].subTopics.push(rawnotes2.relations[j].subject.keywords[b].text);
+                    try {
+                        for (var x = 0; x < notes.length; x++) {
+                            for (var j = 0; j < rawnotes2.relations.length; j++) {
+                                if(rawnotes2.relations[j].subject.hasOwnProperty("keywords")) {
+                                    if (notes[x].text == rawnotes2.relations[j].subject.keywords[0].text) {
+                                        notes[x].sentences.push(rawnotes2.relations[j].object.text)
+                                        if (rawnotes2.relations[j].object.hasOwnProperty("keywords")) {
+                                            for (var b = 0; b < rawnotes2.relations[j].object.keywords.length; b++) {
+                                                notes[x].subTopics.push(rawnotes2.relations[j].subject.keywords[b].text);
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
                     }
+                    catch(err) {
+                        console.log("Not getting notes for this one... " + err);
+                    }
+                    
                     console.log("Pass 2: " + notes);
                     file.set("notes", notes);
                     file.save(null, {
