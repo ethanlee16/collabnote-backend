@@ -56,11 +56,11 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
         }).on('end', function() {
             console.log(text);
             content = JSON.parse(text);
-            continue();
+            processFile();
         });
     });
     
-    var continue = function() {
+    var processFile = function() {
         var hash = checksum(req.file.path, function(digest) {
             var query = new Parse.Query(File);
             query.equalTo("checksum", digest);
