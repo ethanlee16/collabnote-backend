@@ -48,6 +48,7 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
     };
     var text = "";
     var content;
+
     https.get("https://api.idolondemand.com/1/api/sync/extracttext/v1"
         + "?apikey=" + config.hpKey + "&url=" + config.baseURL 
         + req.file.path.replace('public/', ''), function(resp) {
@@ -59,7 +60,7 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
             processFile();
         });
     });
-    
+
     var processFile = function() {
         var hash = checksum(req.file.path, function(digest) {
             var query = new Parse.Query(File);
@@ -179,6 +180,7 @@ function createNotes(file, callback) {
     var content = "";
     var notes = [];
     var text = file.get("text");
+    console.log("Gotten text: " + text);
     var relevance = (Math.log(text.split(" ").length / 500) / Math.LN10) + 0.8;
 
     // WELCOME TO CALLBACK HELL (fixme)
@@ -187,7 +189,8 @@ function createNotes(file, callback) {
         resp.on('data', function(data) {
             content += data;
         }).on('end', function() {
-            var rawnotes = content;
+            var rawnotes = JSON.parse(content);
+            console.log(content);
             for (var i = 0; i < rawnotes.entities.length; i++) {
                 if (rawnotes.entities[i].relevance > relevance) {
                     notes.push(rawnotes.entities[i]);
@@ -195,41 +198,45 @@ function createNotes(file, callback) {
                     notes[notes.length - 1].subTopics = [];
                 }
             }
-        })
-        content = "";
-        http.get("http://access.alchemyapi.com/calls/text/TextGetRelations?"
-        + "apikey=" + config.alchemyKey + "&text=" + text + "&outputmMode=json", function(resp) {
-            resp.on('data', function(data) {
-                content += data;
-            }).on('end', function() {
-                var rawnotes2 = content;
-                for (var x = 0; x < notes.length; x++) {
-                    for (var j = 0; j < rawnotes2.relations.length; j++) {
-                        if(rawnotes2.relations[j].subject.hasOwnProperty("keywords")) {
-                            if (notes[x].text == rawnotes2.relations[j].subject.keywords[0].text) {
-                                notes[x].sentences.push(rawnotes2.relations[j].object.text)
-                                if (rawnotes2.relations[j].object.hasOwnProperty("keywords")) {
-                                    for (var b = 0; b < rawnotes2.relations[j].object.keywords.length; b++) {
-                                        notes[x].subTopics.push(rawnotes2.relations[j].subject.keywords[b].text);
+        
+            console.log("Pass 1: " + notes);
+            content = "";
+            http.get("http://access.alchemyapi.com/calls/text/TextGetRelations?"
+            + "apikey=" + config.alchemyKey + "&text=" + text + "&keywords=1&outputMode=json", function(resp) {
+                resp.on('data', function(data) {
+                    content += data;
+                }).on('end', function() {
+                    var rawnotes2 = JSON.parse(content);
+                    console.log(content);
+                    for (var x = 0; x < notes.length; x++) {
+                        for (var j = 0; j < rawnotes2.relations.length; j++) {
+                            if(rawnotes2.relations[j].subject.hasOwnProperty("keywords")) {
+                                if (notes[x].text == rawnotes2.relations[j].subject.keywords[0].text) {
+                                    notes[x].sentences.push(rawnotes2.relations[j].object.text)
+                                    if (rawnotes2.relations[j].object.hasOwnProperty("keywords")) {
+                                        for (var b = 0; b < rawnotes2.relations[j].object.keywords.length; b++) {
+                                            notes[x].subTopics.push(rawnotes2.relations[j].subject.keywords[b].text);
+                                        }
                                     }
                                 }
                             }
                         }
-                    } // holy
-                } // callback
-                file.set("notes") = notes;
-                file.save(null, {
-                    success: function(file) {
-                        console.log("Saved file successfully");
-                        callback();
-                    },
-                    error: function(file, err) {
-                        console.log("Parse oopsie " + err);
-                    } 
+                    }
+                    console.log("Pass 2: " + notes);
+                    file.set("notes", notes);
+                    file.save(null, {
+                        success: function(file) {
+                            console.log("Saved file successfully");
+                            callback();
+                        },
+                        error: function(file, err) {
+                            console.log("Parse oopsie " + err);
+                        } 
+                    })
                 })
-            }) //please
-        }) //fix this
-    }); //someday
+            }) // ends the 2nd http get
+        })
+    });
 }
 
 function checksum(filepath, callback) {
