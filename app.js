@@ -44,11 +44,11 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
     console.log(req.file);
     var resp = {
         "result": "",
-        "file": {"id": "", "filepath": ""}
+        "file": {"id": "", "filepath": "", "text": ""}
     };
     var text = "";
     var content;
-    https.get("https://api.idolondemand.com/1/api/sync/extracttext/v1/"
+    https.get("https://api.idolondemand.com/1/api/sync/extracttext/v1"
         + "?apikey=" + config.hpKey + "&url=http://collabnote.ethanl.ee/" 
         + req.file.path.replace('public/', ''), function(resp) {
         resp.on('data', function(data) {
@@ -56,7 +56,6 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
         }).on('end', function() {
             console.log(text);
             content = JSON.parse(text);
-            console.log("OK, so our text of the document is " + content.document);
         });
     });
     
@@ -78,6 +77,8 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
                     file.set("checksum", digest);
                     file.set("upvotes", 0);
                     file.set("downvotes", 0);
+                    file.set("notes", []);
+                    file.set("text", content.document[0].content);
 
                     file.save(null, {
                         success: function(file) {
@@ -85,6 +86,7 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
                             resp.result = "created";
                             resp.file.id = file.id;
                             resp.file.filepath = file.get("filepath");
+                            resp.file.text = file.get("text");
                             res.send(resp);
                         },
                         error: function(file, err) {
