@@ -180,6 +180,9 @@ function createNotes(file, callback) {
     var content = "";
     var notes = [];
     var text = file.get("text");
+    if(text.length >= 7864) {
+        text = text.substring(0, 7863);
+    }
     console.log("Gotten text: " + text);
     var relevance = (Math.log(text.split(" ").length / 500) / Math.LN10) + 0.8;
 
