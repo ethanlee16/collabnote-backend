@@ -56,53 +56,56 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
         }).on('end', function() {
             console.log(text);
             content = JSON.parse(text);
+            continue();
         });
     });
     
-    var hash = checksum(req.file.path, function(digest) {
-        var query = new Parse.Query(File);
-        query.equalTo("checksum", digest);
-        query.find({
-            success: function(results) {
-                if(results.length > 0) {
-                    resp.result = "exists";
-                    resp.file.id = results[0].id;
-                    resp.file.filepath = results[0].get("filepath");
-                    resp.file.text = results[0].get("text");
-                    res.send(resp);
-                }
-                else {
-                    var file = new File();
+    var continue = function() {
+        var hash = checksum(req.file.path, function(digest) {
+            var query = new Parse.Query(File);
+            query.equalTo("checksum", digest);
+            query.find({
+                success: function(results) {
+                    if(results.length > 0) {
+                        resp.result = "exists";
+                        resp.file.id = results[0].id;
+                        resp.file.filepath = results[0].get("filepath");
+                        resp.file.text = results[0].get("text");
+                        res.send(resp);
+                    }
+                    else {
+                        var file = new File();
 
-                    file.set("filepath", req.file.path);
-                    file.set("checksum", digest);
-                    file.set("upvotes", 0);
-                    file.set("downvotes", 0);
-                    file.set("notes", []);
-                    file.set("text", content.document[0].content);
+                        file.set("filepath", req.file.path);
+                        file.set("checksum", digest);
+                        file.set("upvotes", 0);
+                        file.set("downvotes", 0);
+                        file.set("notes", []);
+                        file.set("text", content.document[0].content);
 
-                    file.save(null, {
-                        success: function(file) {
-                            console.log(file);
-                            resp.result = "created";
-                            resp.file.id = file.id;
-                            resp.file.filepath = file.get("filepath");
-                            resp.file.text = file.get("text");
-                            res.send(resp);
-                        },
-                        error: function(file, err) {
-                            console.log("Parse error: " + err);
-                            res.status(500).send("500 - an error occurred.");
-                        }
-                    });
+                        file.save(null, {
+                            success: function(file) {
+                                console.log(file);
+                                resp.result = "created";
+                                resp.file.id = file.id;
+                                resp.file.filepath = file.get("filepath");
+                                resp.file.text = file.get("text");
+                                res.send(resp);
+                            },
+                            error: function(file, err) {
+                                console.log("Parse error: " + err);
+                                res.status(500).send("500 - an error occurred.");
+                            }
+                        });
+                    }
+                },
+                error: function(err) {
+                    console.log("Error: " + err);
+                    res.status(500).send("500 - an error occurred.")
                 }
-            },
-            error: function(err) {
-                console.log("Error: " + err);
-                res.status(500).send("500 - an error occurred.")
-            }
+            });
         });
-    });
+    };
 });
 
 /* Leenote: a route located at /api/1.0/storenotes/<file ID> */
