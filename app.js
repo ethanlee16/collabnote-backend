@@ -44,12 +44,12 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
     console.log(req.file);
     var resp = {
         "result": "",
-        "file": {"id": "", "filepath": "", "text": ""}
+        "file": {"id": "", "filepath": "", "text": "", "notes": []}
     };
     var text = "";
     var content;
     https.get("https://api.idolondemand.com/1/api/sync/extracttext/v1"
-        + "?apikey=" + config.hpKey + "&url=http://collabnote.ethanl.ee/" 
+        + "?apikey=" + config.hpKey + "&url=" + config.baseURL 
         + req.file.path.replace('public/', ''), function(resp) {
         resp.on('data', function(data) {
             text += data;
@@ -71,6 +71,8 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
                         resp.file.id = results[0].id;
                         resp.file.filepath = results[0].get("filepath");
                         resp.file.text = results[0].get("text");
+                        resp.file.notes = results[0].get("notes");
+                        fs.unlinkSync(req.file.path);
                         res.send(resp);
                     }
                     else {
@@ -90,7 +92,10 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
                                 resp.file.id = file.id;
                                 resp.file.filepath = file.get("filepath");
                                 resp.file.text = file.get("text");
-                                res.send(resp);
+                                createNotes(file, function() {
+                                    resp.file.notes = file.get("notes");
+                                    res.send(resp);
+                                })
                             },
                             error: function(file, err) {
                                 console.log("Parse error: " + err);
@@ -169,6 +174,63 @@ app.get('/api/' + API_VER + '/:action/:id', function(req, res) {
         }
     })
 });
+
+function createNotes(file, callback) {
+    var content = "";
+    var notes = [];
+    var relevance = (Math.log(text.split(" ").length / 500) / Math.LN10) + 0.8;
+    var text = file.get("text");
+
+    // WELCOME TO CALLBACK HELL (fixme)
+    http.get("http://access.alchemyapi.com/calls/text/TextGetRankedNamedEntities?"
+    + "apikey=" + config.alchemyKey + "&text=" + text + "&outputMode=json", function(resp) {
+        resp.on('data', function(data) {
+            content += data;
+        }).on('end', function() {
+            var rawnotes = content;
+            for (var i = 0; i < rawnotes.entities.length; i++) {
+                if (rawnotes.entities[i].relevance > relevance) {
+                    notes.push(rawnotes.entities[i]);
+                    notes[notes.length - 1].sentences = [];
+                    notes[notes.length - 1].subTopics = [];
+                }
+            }
+        })
+        content = "";
+        http.get("http://access.alchemyapi.com/calls/text/TextGetRelations?"
+        + "apikey=" + config.alchemyKey + "&text=" + text + "&outputmMode=json", function(resp) {
+            resp.on('data', function(data) {
+                content += data;
+            }).on('end', function() {
+                var rawnotes2 = content;
+                for (var x = 0; x < notes.length; x++) {
+                    for (var j = 0; j < rawnotes2.relations.length; j++) {
+                        if(rawnotes2.relations[j].subject.hasOwnProperty("keywords")) {
+                            if (notes[x].text == rawnotes2.relations[j].subject.keywords[0].text) {
+                                notes[x].sentences.push(rawnotes2.relations[j].object.text)
+                                if (rawnotes2.relations[j].object.hasOwnProperty("keywords")) {
+                                    for (var b = 0; b < rawnotes2.relations[j].object.keywords.length; b++) {
+                                        notes[x].subTopics.push(rawnotes2.relations[j].subject.keywords[b].text);
+                                    }
+                                }
+                            }
+                        }
+                    } // holy
+                } // callback
+                file.set("notes") = notes;
+                file.save(null, {
+                    success: function(file) {
+                        console.log("Saved file successfully");
+                        callback();
+                    },
+                    error: function(file, err) {
+                        console.log("Parse oopsie " + err);
+                    } 
+                })
+            }) //please
+        }) //fix this
+    }); //someday
+}
 
 function checksum(filepath, callback) {
     var hash = crypto.createHash('md5');
