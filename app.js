@@ -68,6 +68,7 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
                     resp.result = "exists";
                     resp.file.id = results[0].id;
                     resp.file.filepath = results[0].get("filepath");
+                    resp.file.text = results[0].get("text");
                     res.send(resp);
                 }
                 else {
