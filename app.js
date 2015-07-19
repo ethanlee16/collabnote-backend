@@ -18,6 +18,8 @@ var storage = multer.diskStorage({
     }
 });
 var upload = multer({storage: storage});
+var http = require("http");
+var https = require("https");
 
 // For private keys
 var config = require('./config');
@@ -44,6 +46,20 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
         "result": "",
         "file": {"id": "", "filepath": ""}
     };
+    var text = "";
+    var content;
+    https.get("https://api.idolondemand.com/1/api/sync/extracttext/v1/"
+        + "?apikey=" + config.hpKey + "&url=http://collabnotes.ethanl.ee/" 
+        + req.file.path.replace('public/', ''), function(resp) {
+        resp.on('data', function(data) {
+            text += data;
+        }).on('end', function() {
+            console.log(text);
+            content = JSON.parse(text);
+            console.log("OK, so our text of the document is " + content.document);
+        });
+    });
+    
     var hash = checksum(req.file.path, function(digest) {
         var query = new Parse.Query(File);
         query.equalTo("checksum", digest);
@@ -77,8 +93,31 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
                         }
                     });
                 }
+            },
+            error: function(err) {
+                console.log("Error: " + err);
+                res.status(500).send("500 - an error occurred.")
             }
         });
+    });
+});
+
+/* Leenote: a route located at /api/1.0/storenotes/<file ID> */
+app.post('/api/' + API_VER + '/storenotes/:id', function(req, res) {
+    var query = new Parse.Query(File);
+    query.get(req.params.id, {
+        success: function(file) {
+            /* 
+               right here, we can put your notes creation API logic
+               and store it to Parse
+               
+               Leenote: use the http module https://nodejs.org/api/http.html 
+            */
+            file.set("notes", []);
+        },
+        error: function(file, err) {
+            res.status(404).send("File with ID " + req.params.id + " could not be loaded.");
+        }
     });
 });
 
@@ -99,11 +138,15 @@ app.get('/api/' + API_VER + '/score/:id', function(req, res) {
     })
 });
 
-app.get('/api/' + API_VER + '/upvote/:id', function(req, res) {
+app.get('/api/' + API_VER + '/:action/:id', function(req, res) {
     var query = new Parse.Query(File);
+    
+    // Leenote: this is either upvote or downvote from :action
+    var vote = req.params.action + "s";
+    
     query.get(req.params.id, {
         success: function(file) {
-            file.set("upvotes", file.get("upvotes") + 1);
+            file.set(vote, file.get(vote) + 1);
             file.save(null, {
                 success: function(file) {
                     res.status(200).end();
@@ -120,28 +163,6 @@ app.get('/api/' + API_VER + '/upvote/:id', function(req, res) {
         }
     })
 });
-
-app.get('/api/' + API_VER + '/downvote/:id', function(req, res) {
-    var query = new Parse.Query(File);
-    query.get(req.params.id, {
-        success: function(file) {
-            file.set("downvotes", file.get("downvotes") + 1);
-            file.save(null, {
-                success: function(file) {
-                    res.status(200).end();
-                },
-                error: function(file, err) {
-                    console.log("Parse error: " + err);
-                    res.status(500).send("500 - an error occurred.");
-                }
-            });
-        },
-        error: function(file, err) {
-            console.log("Parse error: " + err);
-            res.status(500).send("500 - an error occurred.");
-        }
-    })
-})
 
 function checksum(filepath, callback) {
     var hash = crypto.createHash('md5');
