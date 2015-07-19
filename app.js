@@ -49,7 +49,7 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
     var text = "";
     var content;
     https.get("https://api.idolondemand.com/1/api/sync/extracttext/v1/"
-        + "?apikey=" + config.hpKey + "&url=http://collabnotes.ethanl.ee/" 
+        + "?apikey=" + config.hpKey + "&url=http://collabnote.ethanl.ee/" 
         + req.file.path.replace('public/', ''), function(resp) {
         resp.on('data', function(data) {
             text += data;
