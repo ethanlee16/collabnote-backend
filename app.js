@@ -117,6 +117,30 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
     };
 });
 
+app.get('/api/' + API_VER + '/getnotes/:user', function(req, res) {
+    console.log("Attempting to get notes for " + req.params.user);
+    var query = new Parse.Query(File);
+    query.equalTo("user", req.params.user);
+    var resp = {"results": []};
+    query.find({
+        success: function(results) {
+            for(var i = 0; i < results.length; i++) {
+                resp.results.push({"file": {
+                    "id": results[i].id,
+                    "filepath": results[i].get("filepath"),
+                    "text": results[i].get("text"),
+                    "notes": results[i].get("notes")
+                }})
+            }
+            res.send(resp);
+        },
+        error: function(err) {
+            console.log("Error: " + err);
+            res.status(500).send("500 - an error occurred");
+        }
+    });
+});
+
 /* Leenote: a route located at /api/1.0/storenotes/<file ID> */
 app.post('/api/' + API_VER + '/storenotes/:id', function(req, res) {
     var query = new Parse.Query(File);
@@ -187,7 +211,7 @@ function createNotes(file, callback) {
         text = text.substring(0, 7863);
     }
     console.log("Gotten text: " + text);
-    var relevance = (Math.log(text.split(" ").length / 500) / Math.LN10) + 0.8;
+    var relevance = 0.6;
 
     // WELCOME TO CALLBACK HELL (fixme)
     http.get("http://access.alchemyapi.com/calls/text/TextGetRankedNamedEntities?"
