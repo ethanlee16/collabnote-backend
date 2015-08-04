@@ -20,6 +20,7 @@ var storage = multer.diskStorage({
 var upload = multer({storage: storage});
 var http = require("http");
 var https = require("https");
+var _ocrsdk = require('./lib/ocrsdk');
 
 // For private keys
 var config = require('./config');
@@ -27,6 +28,7 @@ var fs = require('fs');
 var crypto = require('crypto');
 var Parse = require('parse').Parse;
 var File = Parse.Object.extend("File");
+var ocrsdk = _ocrsdk.create(config.ocrsdkID, config.ocrsdkPass);
 
 var API_VER = '1.0';
 var app = express();
@@ -40,6 +42,7 @@ app.all('*', function(req, res, next) {
     next();
 });
 
+
 app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res) {
     console.log(req.file);
     var resp = {
@@ -48,18 +51,49 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
     };
     var text = "";
     var content;
+    var filepath = req.file.path;
 
-    https.get("https://api.idolondemand.com/1/api/sync/extracttext/v1"
-        + "?apikey=" + config.hpKey + "&url=" + config.baseURL 
-        + req.file.path.replace('public/', ''), function(resp) {
-        resp.on('data', function(data) {
-            text += data;
-        }).on('end', function() {
-            console.log(text);
-            content = JSON.parse(text);
-            processFile();
+    if(filepath.substring(filepath.length - 3, filepath.length) !== "jpg") {
+        https.get("https://api.idolondemand.com/1/api/sync/extracttext/v1"
+            + "?apikey=" + config.hpKey + "&url=" + config.baseURL 
+            + req.file.path.replace('public/', ''), function(resp) {
+            resp.on('data', function(data) {
+                text += data;
+            }).on('end', function() {
+                console.log(text);
+                content = JSON.parse(text);
+                processFile();
+            });
         });
-    });
+    } else {
+        var opt = new _ocrsdk.ProcessingSettings();
+        opt.language = "English";
+        opt.exportFormat = "txt";
+        ocrsdk.processImage(filepath, opt, function(err, data) {
+            if(err) {
+                console.log("OCRSDK Error: " + err.message);
+            }
+            ocrsdk.waitForCompletion(data.id, function(err, data) {
+                if(err) {
+                    console.log("OCRSDK Error: " + err.message);
+                }
+                https.get(data.resultUrl.toString(), function(resp) {
+                    resp.on('data', function(data) {
+                        text += data;
+                    }).on('end', function() {
+                        console.log(text);
+                        content = {
+                            "document": [{
+                                "content": text
+                            }]
+                        };
+                        processFile();
+                    })
+                });
+            });
+        });
+    }
+    
 
     var processFile = function() {
         var hash = checksum(req.file.path, function(digest) {
@@ -117,8 +151,23 @@ app.post('/api/' + API_VER + '/upload', upload.single('file'), function(req, res
     };
 });
 
-app.get('/api/' + API_VER + '/getnotes/:user', function(req, res) {
-    console.log("Attempting to get notes for " + req.params.user);
+app.get('/api/' + API_VER + '/getnotes/:id', function(req, res) {
+    var query = new Parse.Query(File);
+    query.get(req.params.id, {
+        success: function(file) {
+            var notes = file.get("notes");
+            var result = {notes: notes};
+            res.send(result);
+        },
+        error: function(file, err) {
+            console.log("Parse error: " + err);
+            res.status(500).send("500 - an error occurred.");
+        }
+    })
+});
+
+app.get('/api/' + API_VER + '/getfiles/:user', function(req, res) {
+    console.log("Attempting to get files for " + req.params.user);
     var query = new Parse.Query(File);
     query.equalTo("user", req.params.user);
     var resp = {"results": []};
@@ -290,4 +339,4 @@ function checksum(filepath, callback) {
     });
 }
 
-app.listen(process.env.PORT);
+app.listen(process.env.PORT || 3005);
